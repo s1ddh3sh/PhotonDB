@@ -261,6 +261,10 @@ static uint64_t str_hash(const uint8_t *data, size_t len)
 
 static void do_get(std::vector<std::string> &cmd, Buffer &out)
 {
+    if (cmd.size() != 2)
+    {
+        return out_err(out, ERR_UNKNOWN, "GET command requires 1 argument");
+    }
     // dummy Entry for lookup
     Entry key;
     key.key.swap(cmd[1]);
@@ -278,6 +282,10 @@ static void do_get(std::vector<std::string> &cmd, Buffer &out)
 
 static void do_set(std::vector<std::string> &cmd, Buffer &out)
 {
+    if (cmd.size() != 3)
+    {
+        return out_err(out, ERR_UNKNOWN, "SET command requires exactly 2 arguments");
+    }
     // dummy Entry for lookup
     Entry key;
     key.key.swap(cmd[1]);
@@ -304,6 +312,10 @@ static void do_set(std::vector<std::string> &cmd, Buffer &out)
 
 static void do_del(std::vector<std::string> &cmd, Buffer &out)
 {
+    if (cmd.size() != 2)
+    {
+        return out_err(out, ERR_UNKNOWN, "DEL command requires 1 argument");
+    }
     // dummy Entry for lookup
     Entry key;
     key.key.swap(cmd[1]);
@@ -326,8 +338,13 @@ static bool cb_keys(HNode *node, void *arg)
     return true;
 }
 
-static void do_keys(std::vector<std::string> &, Buffer &out)
+static void do_keys(std::vector<std::string> &cmd, Buffer &out)
 {
+    if (cmd.size() != 1)
+    {
+        return out_err(out, ERR_UNKNOWN, "KEYS command requires no arguments");
+    }
+
     out_arr(out, (uint32_t)hm_size(&g_data.db));
     hm_foreach(&g_data.db, &cb_keys, (void *)&out);
 }
