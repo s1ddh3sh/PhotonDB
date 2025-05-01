@@ -10,6 +10,9 @@
 #include <assert.h>
 #include <vector>
 #include <string>
+#include <iostream>
+#include <algorithm>
+#define PROMPT "\033[96m⚡photon>\033[0m "
 
 static void msg(const char *msg)
 {
@@ -55,8 +58,15 @@ const ssize_t k_max_msg = 4096; // likely bigger than kernel buffer
 
 static int32_t send_req(int fd, const std::vector<std::string> &cmd)
 {
+    std::vector<std::string> uppercased_cmd = cmd;
+    if (!uppercased_cmd.empty())
+    {
+        std::string &first_cmd = uppercased_cmd[0];
+        std::transform(first_cmd.begin(), first_cmd.end(), first_cmd.begin(), ::toupper);
+    }
     uint32_t len = 4;
-    for (const std::string &s : cmd)
+    uint32_t n = uppercased_cmd.size();
+    for (const std::string &s : uppercased_cmd)
     {
         len += 4 + s.size();
     }
@@ -65,10 +75,9 @@ static int32_t send_req(int fd, const std::vector<std::string> &cmd)
 
     char wbuf[4 + k_max_msg];
     memcpy(&wbuf[0], &len, 4);
-    uint32_t n = cmd.size();
     memcpy(&wbuf[4], &n, 4);
     size_t cur = 8;
-    for (const std::string &s : cmd)
+    for (const std::string &s : uppercased_cmd)
     {
         uint32_t p = (uint32_t)s.size();
         memcpy(&wbuf[cur], &p, 4);
@@ -98,8 +107,8 @@ static int32_t print_response(const uint8_t *data, size_t size)
     switch (data[0])
     {
     case TAG_NIL:
-        printf("(nil)\n");
-        return -1;
+        printf("OK\n");
+        return 1;
     case TAG_ERR:
         if (size < 1 + 8)
         {
@@ -162,7 +171,7 @@ static int32_t print_response(const uint8_t *data, size_t size)
         }
 
     case TAG_ARR:
-        if (size < 1 + 8)
+        if (size < 1 + 4)
         {
             msg("bad response");
             return -1;
@@ -209,7 +218,7 @@ static int32_t read_res(int fd)
     memcpy(&len, rbuf, 4);
     if (len > k_max_msg)
     {
-        msg("too long");
+        msg("response is too long");
         return -1;
     }
 
@@ -223,15 +232,19 @@ static int32_t read_res(int fd)
 
     // print server response
     int32_t rv = print_response((uint8_t *)&rbuf[4], len);
-    if (rv > 0 && (uint32_t)rv != len)
+    if (rv < 0)
     {
-        msg("bad response");
-        return -1;
+        msg("failed to parse response");
+        return rv;
     }
-    return rv;
+    if ((uint32_t)rv != len)
+    {
+        fprintf(stderr, "DEBUG: response size mismatch %d != %u\n", rv, len);
+    }
+    return 0;
 }
 
-int main(int argc, char **argv)
+int main()
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)
@@ -249,23 +262,52 @@ int main(int argc, char **argv)
     {
         die("connect");
     }
-    std::vector<std::string> cmd;
-    for (int i = 1; i < argc; ++i)
-    {
-        cmd.push_back(argv[i]);
-    }
-    int32_t err = send_req(fd, cmd);
-    if (err)
-    {
-        goto L_DONE;
-    }
-    err = read_res(fd);
-    if (err)
-    {
-        goto L_DONE;
-    }
 
-L_DONE:
+    while (true)
+    {
+        printf(PROMPT);
+        fflush(stdout);
+
+        std::string line;
+        if (!std::getline(std::cin, line))
+        {
+            printf("\n");
+            break; // EOF
+        }
+        std::vector<std::string> cmd;
+
+        for (size_t pos = 0; pos < line.size();)
+        {
+            if (isspace(line[pos]))
+            {
+                pos++;
+                continue;
+            }
+            size_t start = pos;
+            while (pos < line.size() && !isspace(line[pos]))
+            {
+                pos++;
+            }
+            cmd.push_back(line.substr(start, pos - start));
+        }
+        if (cmd.empty())
+            continue;
+        if (cmd[0] == "exit")
+            break;
+
+        int32_t err = send_req(fd, cmd);
+        if (err)
+        {
+            msg("Failed to send request");
+            break;
+        }
+        err = read_res(fd);
+        if (err)
+        {
+            msg("Failed to send request");
+            break;
+        }
+    }
     close(fd);
     return 0;
 }

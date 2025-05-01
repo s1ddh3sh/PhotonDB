@@ -351,7 +351,11 @@ static void do_keys(std::vector<std::string> &cmd, Buffer &out)
 
 static void do_request(std::vector<std::string> &cmd, Buffer &out)
 {
-    if (cmd.size() == 2 && cmd[0] == "GET")
+    if (cmd.size() == 1 && cmd[0] == "ZAP")
+    {
+        return out_str(out, "ZING", 4);
+    }
+    else if (cmd.size() == 2 && cmd[0] == "GET")
     {
         return do_get(cmd, out);
     }

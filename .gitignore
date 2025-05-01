@@ -6,8 +6,7 @@ dist/
 wheels/
 *.egg-info
 
-core/client
-core/server
+
 core/hashtable.h.gch
 core/dump.rdb
 # Virtual environments
