@@ -12,7 +12,7 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
-#define PROMPT "\033[96m⚡photon>\033[0m "
+#define PROMPT "\033[93m⚡photon>\033[0m "
 
 static void msg(const char *msg)
 {
@@ -42,6 +42,7 @@ static int32_t read_full(int fd, char *buf, size_t n)
 
 static int32_t write_all(int fd, char *buf, size_t n)
 {
+    size_t written = 0;
     while (n > 0)
     {
         ssize_t rv = write(fd, buf, n);
@@ -50,6 +51,7 @@ static int32_t write_all(int fd, char *buf, size_t n)
         assert((size_t)rv <= n);
         n -= (size_t)rv;
         buf += rv;
+        written += (size_t)rv;
     }
     return 0;
 }
@@ -64,27 +66,34 @@ static int32_t send_req(int fd, const std::vector<std::string> &cmd)
         std::string &first_cmd = uppercased_cmd[0];
         std::transform(first_cmd.begin(), first_cmd.end(), first_cmd.begin(), ::toupper);
     }
-    uint32_t len = 4;
+    uint32_t len = 0;
     uint32_t n = uppercased_cmd.size();
+    size_t cur = 0;
     for (const std::string &s : uppercased_cmd)
     {
-        len += 4 + s.size();
+        len += s.size();
     }
     if (len > k_max_msg)
         return -1;
 
     char wbuf[4 + k_max_msg];
-    memcpy(&wbuf[0], &len, 4);
-    memcpy(&wbuf[4], &n, 4);
-    size_t cur = 8;
+    n = htole32(n);
+    memcpy(&wbuf[cur], &n, 4);
+    cur += 4;
     for (const std::string &s : uppercased_cmd)
     {
-        uint32_t p = (uint32_t)s.size();
+        uint32_t p = htole32((uint32_t)s.size());
         memcpy(&wbuf[cur], &p, 4);
         memcpy(&wbuf[cur + 4], s.data(), s.size());
         cur += 4 + s.size();
     }
-    return write_all(fd, wbuf, 4 + len);
+    // fprintf(stderr, "Sending request:\n");
+    // for (size_t i = 0; i < cur; i++)
+    // {
+    //     fprintf(stderr, "%02x ", (unsigned char)wbuf[i]);
+    // }
+    // fprintf(stderr, "\n");
+    return write_all(fd, wbuf, cur);
 }
 
 enum
@@ -95,6 +104,7 @@ enum
     TAG_INT = 3, // int64
     TAG_DBL = 4, // double
     TAG_ARR = 5, // array
+    TAG_OK = 6   // success response
 };
 
 static int32_t print_response(const uint8_t *data, size_t size)
@@ -107,6 +117,9 @@ static int32_t print_response(const uint8_t *data, size_t size)
     switch (data[0])
     {
     case TAG_NIL:
+        printf("not found\n");
+        return 1;
+    case TAG_OK:
         printf("OK\n");
         return 1;
     case TAG_ERR:
@@ -119,7 +132,9 @@ static int32_t print_response(const uint8_t *data, size_t size)
             int32_t code = 0;
             uint32_t len = 0;
             memcpy(&code, &data[1], 4);
+            code = le32toh(code);
             memcpy(&len, &data[1 + 4], 4);
+            len = le32toh(len);
             if (size < 1 + 8 + len)
             {
                 msg("bad_response");
@@ -137,6 +152,7 @@ static int32_t print_response(const uint8_t *data, size_t size)
         {
             uint32_t len = 0;
             memcpy(&len, &data[1], 4);
+            len = le32toh(len);
             if (size < 1 + 4 + len)
             {
                 msg("bad response");
@@ -154,6 +170,7 @@ static int32_t print_response(const uint8_t *data, size_t size)
         {
             int64_t val = 0;
             memcpy(&val, &data[1], 8);
+            val = le64toh(val);
             printf("(int) %ld\n", val);
             return 1 + 8;
         }
@@ -179,6 +196,7 @@ static int32_t print_response(const uint8_t *data, size_t size)
         {
             uint32_t len = 0;
             memcpy(&len, &data[1], 4);
+            len = le32toh(len);
             printf("(arr) len=%u\n", len);
             size_t arr_bytes = 1 + 4;
             for (uint32_t i = 0; i < len; i++)
@@ -216,6 +234,7 @@ static int32_t read_res(int fd)
 
     uint32_t len = 0;
     memcpy(&len, rbuf, 4);
+    len = le32toh(len);
     if (len > k_max_msg)
     {
         msg("response is too long");

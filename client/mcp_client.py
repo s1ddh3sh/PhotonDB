@@ -28,7 +28,7 @@ class PhotonMCPClient:
         try:
             msg = format_command(list(args))
             sock.sendall(msg)
-
+            print(f"Data sent: {msg}")
             # Read the response
             header = sock.recv(4)
             if len(header) < 4:
@@ -63,4 +63,10 @@ class PhotonMCPClient:
     def keys(self) -> List[str]:
         """GET all keys from db"""
         return self.execute_command('KEYS')
+    def zap(self) -> str :
+        """Check for alive connection"""
+        return self.execute_command('ZAP')
     
+if __name__ == "__main__":
+    client = PhotonMCPClient()
+    print(client.zap())

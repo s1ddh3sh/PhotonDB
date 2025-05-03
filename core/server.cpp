@@ -111,8 +111,11 @@ const size_t k_max_args = 200 * 1000;
 static bool read_u32(const uint8_t *&cur, const uint8_t *end, uint32_t &out)
 {
     if (cur + 4 > end)
+    {
         return false;
+    }
     memcpy(&out, cur, 4);
+    out = le32toh(out);
     cur += 4;
     return true;
 }
@@ -121,7 +124,9 @@ static bool
 read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out)
 {
     if (cur + n > end)
+    {
         return false;
+    }
     out.assign(cur, cur + n);
     cur += n;
     return true;
@@ -134,25 +139,43 @@ read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out)
 static int32_t
 parse_req(const uint8_t *data, size_t size, std::vector<std::string> &out)
 {
+    // fprintf(stderr, "Raw request data (%zu bytes): ", size);
+    // for (size_t i = 0; i < size; i++)
+    // {
+    //     fprintf(stderr, "%02x ", data[i]);
+    // }
+    // fprintf(stderr, "\n");
     const uint8_t *end = data + size;
     uint32_t nstr = 0;
     if (!read_u32(data, end, nstr))
+    {
         return -1;
+    }
     if (nstr > k_max_args)
+    {
         return -1;
+    }
 
     while (out.size() < nstr)
     {
         uint32_t len = 0;
         if (!read_u32(data, end, len))
+        {
             return -1;
+        }
 
         out.push_back(std::string());
         if (!read_str(data, end, len, out.back()))
+        {
             return -1;
+        }
     }
+
     if (data != end)
+    {
+        fprintf(stderr, "Extra data after parsing command\n");
         return -1;
+    }
     return 0;
 }
 
@@ -172,6 +195,7 @@ enum
     TAG_INT = 3, // int64
     TAG_DBL = 4, // double
     TAG_ARR = 5, // array
+    TAG_OK = 6   // success response
 };
 
 // functions for serialization
@@ -307,7 +331,7 @@ static void do_set(std::vector<std::string> &cmd, Buffer &out)
         ent->val.swap(cmd[2]);
         hm_insert(&g_data.db, &ent->node);
     }
-    return out_nil(out);
+    return buf_append_u8(out, TAG_OK);
 }
 
 static void do_del(std::vector<std::string> &cmd, Buffer &out)
@@ -405,38 +429,86 @@ static void response_end(Buffer &out, size_t header)
 // process 1 req if enough data
 static bool try_one_request(Conn *conn)
 {
+    // fprintf(stderr, "try_one_request: Incoming buffer size: %zu\n", conn->incoming.size());
+    // for (size_t i = 0; i < conn->incoming.size(); i++)
+    // {
+    //     fprintf(stderr, "%02x ", conn->incoming[i]);
+    // }
     // try to parse header
     if (conn->incoming.size() < 4)
+    {
         return false; // not enough data
+    }
 
     uint32_t len = 0;
     memcpy(&len, conn->incoming.data(), 4);
+
     if (len > k_max_msg)
     {
         msg("too long");
         conn->want_close = true;
         return false;
     }
+    size_t expected_size = 4;
+    const uint8_t *cur = &conn->incoming[4];
+    const uint8_t *end = &conn->incoming[conn->incoming.size()];
+
+    for (uint32_t i = 0; i < len; i++)
+    {
+        uint32_t str_len = 0;
+        if (cur + 4 > end)
+        {
+            return false;
+        }
+        memcpy(&str_len, cur, 4);
+        str_len = le32toh(str_len);
+        cur += 4;
+
+        if (cur + str_len > end)
+        {
+            return false;
+        }
+        expected_size += 4 + str_len;
+        // fprintf(stderr, "String %u length: %u, Updated expected size: %zu\n", i + 1, str_len, expected_size); // Add 4 bytes for the length and `len` bytes for the string
+        cur += str_len;
+    }
+
+    if (expected_size > conn->incoming.size())
+    {
+        return false;
+    }
 
     // body
     if (4 + len > conn->incoming.size())
+    {
+
         return false;
-    const uint8_t *request = &conn->incoming[4];
+    }
+    const uint8_t *request = &conn->incoming[0];
 
     // got one request, do application logic
     std::vector<std::string> cmd;
-    if (parse_req(request, len, cmd) < 0)
+
+    if (parse_req(request, expected_size, cmd) < 0)
     {
         msg("bad request");
         conn->want_close = true;
         return false;
     }
+    // fprintf(stderr, "try_one_request: Parsed command:\n");
+    // for (size_t i = 0; i < cmd.size(); i++)
+    // {
+    //     fprintf(stderr, "  Command[%zu]: %s\n", i, cmd[i].c_str());
+    // }
     size_t header_pos = 0;
     response_begin(conn->outgoing, &header_pos);
+
     do_request(cmd, conn->outgoing);
+
     response_end(conn->outgoing, header_pos);
 
-    buf_consume(conn->incoming, 4 + len);
+    buf_consume(conn->incoming, expected_size);
+    conn->want_write = true;
     return true;
 }
 
@@ -453,7 +525,6 @@ static void handle_write(Conn *conn)
         conn->want_close = true;
         return;
     }
-
     // remove written data from out buf
     buf_consume(conn->outgoing, (size_t)rv);
 
