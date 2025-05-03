@@ -2,11 +2,10 @@ import socket
 import struct
 from typing import List, Dict, Any,Union, Optional
 
-from .protocol import (
-    TAG_NIL,TAG_STR,TAG_INT,TAG_DBL,TAG_ARR,TAG_ERR,
+from protocol import (
     format_command,parse_response
 )
-from .config import Config
+from config import Config
 
 class PhotonMCPClient:
     """Client to connect C++ Photon server"""
@@ -19,6 +18,7 @@ class PhotonMCPClient:
     def _connect(self) -> socket.socket:
         """Establish connection with Photon server"""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # sock.settimeout(5)
         sock.connect((self.host, self.port))
         return sock
     
@@ -34,7 +34,7 @@ class PhotonMCPClient:
             if len(header) < 4:
                 raise ConnectionError("Incomplete header received")
             
-            msg_len, = struct.unpack('!I', header)
+            msg_len, = struct.unpack('<I', header)
 
             #Read the full msg
             data = b''
@@ -45,6 +45,7 @@ class PhotonMCPClient:
                     raise ConnectionError("Connection closed by server")
                 data += chunk
                 remaining -= len(chunk)
+            print(f"Data received: {data}")
             return parse_response(data)
         finally:
             sock.close()
@@ -62,3 +63,4 @@ class PhotonMCPClient:
     def keys(self) -> List[str]:
         """GET all keys from db"""
         return self.execute_command('KEYS')
+    
