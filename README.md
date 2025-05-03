@@ -1,13 +1,13 @@
 # ⚡PhotonDB
 
-**PhotonDB** is a lightweight, high-performance in-memory key-value database server written in vanilla C++17.
-It provides access to mutable data structures via a set of commands, which are sent using a server-client model with TCP sockets and a simple protocol.
+**PhotonDB** is a high-performance in-memory key-value database server written in C++17. It provides access to mutable data structures via a simple TCP-based protocol using a server-client model.
 
-What sets PhotonDB apart from its conventional CLI to interact with, is its native support for [MCP](https://modelcontextprotocol.io/) — the Model Context Protocol — enabling seamless, natural-language interactions with the database engine. With MCP, PhotonDB becomes more than a data store — it becomes a conversational system that understands high-level user intents in context (actively under development).
+PhotonDB also integrates with [MCP](https://modelcontextprotocol.io/) — the Model Context Protocol — enabling natural-language interactions with the data, making it more than just a database (actively under development).
 
-## Using Photon with photon-cli
+<details open>
+<summary><h2>Using PhotonDB with photon-cli</h2> </summary>
 
-`photon-cli` is Photon's command line interface
+`photon-cli` is PhotonDB's command line interface
 
 You can start a photon server instance `./core/server.cpp`
 and then, in another terminal try the following:
@@ -22,3 +22,36 @@ and then, in another terminal try the following:
 ⚡photon> get foo
  (str) bar
 ```
+
+</details>
+
+<details open>
+<summary><h2>Using PhotonDB with MCP client</h2></summary>
+
+PhotonDB also supports the Model Context Protocol (MCP) for natural-language interactions. The MCP server is implemented in `server.py`
+
+### Adding MCP to your project
+
+We recommend using [uv](https://docs.astral.sh/uv/) as a python package manager
+
+```
+uv add "mcp[cli]"
+```
+
+To run the mcp command with uv :
+
+```
+uv run mcp
+```
+
+You can install this `server.py` on [Claude Desktop](https://claude.ai/download) and interact with it right away by running :
+
+```
+uv run mcp install server.py
+```
+
+</details>
+
+#### API Reference
+
+Please refer the `API.md` for full list of supported commands and usage examples

@@ -8,6 +8,7 @@ TAG_STR = 2
 TAG_INT = 3
 TAG_DBL = 4
 TAG_ARR = 5
+TAG_OK = 6
 
 def format_command(cmd: List[str]) -> bytes:
     """Format a command to the binary protocol expected by the server"""
@@ -28,6 +29,8 @@ def parse_response(data: bytes) -> Any :
 
     if tag == TAG_NIL:
         return None
+    if tag == TAG_OK:
+        return "OK"
     elif tag == TAG_ERR:
         code, = struct.unpack('<I', data[1:5])
         msg_len, = struct.unpack('<I', data[5:9])

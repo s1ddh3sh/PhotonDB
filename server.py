@@ -1,8 +1,8 @@
 from typing import List, Dict, Any, Optional
 from mcp.server.fastmcp import FastMCP
 
-from client.mcp_client import PhotonMCPClient
-from client.config import Config
+from mcp_client import PhotonMCPClient
+from mcp_config.config import Config
 
 config = Config()
 app = FastMCP('PhotonDB')

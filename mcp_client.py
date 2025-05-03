@@ -2,10 +2,10 @@ import socket
 import struct
 from typing import List, Dict, Any,Union, Optional
 
-from protocol import (
+from mcp_config.protocol import (
     format_command,parse_response
 )
-from config import Config
+from mcp_config.config import Config
 
 class PhotonMCPClient:
     """Client to connect C++ Photon server"""
@@ -69,4 +69,5 @@ class PhotonMCPClient:
     
 if __name__ == "__main__":
     client = PhotonMCPClient()
-    print(client.zap())
+    client.set("name", "test")
+    print(client.keys())
