@@ -7,7 +7,7 @@ wheels/
 *.egg-info
 
 
-core/hashtable.h.gch
+core/hashtable/hashtable.h.gch
 core/dump.rdb
 # Virtual environments
 .venv

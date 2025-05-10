@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "hashtable.h"
+#include "hashtable/hashtable.h"
 
 #define container_of(ptr, T, member) \
     ((T *)((char *)ptr - offsetof(T, member)))
