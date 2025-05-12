@@ -9,7 +9,7 @@ PhotonDB also integrates with [MCP](https://modelcontextprotocol.io/) — the Mo
 
 `photon-cli` is PhotonDB's command line interface
 
-You can start a photon server instance `./core/server.cpp`
+You can start a photon server instance `./core/server`
 and then, in another terminal try the following:
 
 ```sh
