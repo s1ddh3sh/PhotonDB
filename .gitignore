@@ -6,7 +6,8 @@ dist/
 wheels/
 *.egg-info
 
-
+core/avl/test_avl.cpp
+core/avl/test_avl.out
 core/hashtable/hashtable.h.gch
 core/dump.rdb
 # Virtual environments

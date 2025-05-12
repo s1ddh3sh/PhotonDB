@@ -146,3 +146,41 @@ AVLNode *avl_del(AVLNode *node)
     *from = succ;
     return root;
 }
+
+// offset into succeeding or preceeding node
+AVLNode *avl_offset(AVLNode *node, int64_t offset)
+{
+    int64_t pos = 0;
+    while (offset != pos)
+    {
+        if (pos < offset && avl_cnt(node->right) >= offset)
+        {
+            // target inside right subtree
+            node = node->right;
+            pos += avl_cnt(node->left) + 1;
+        }
+        else if (pos > offset && pos - avl_cnt(node->left) <= offset)
+        {
+            // target inside left subtree
+            node = node->left;
+            pos -= avl_cnt(node->right) + 1;
+        }
+        else
+        {
+            // go to parent
+            AVLNode *parent = node->parent;
+            if (!parent)
+                return NULL;
+            if (parent->right == node)
+            {
+                pos -= avl_cnt(node->left) + 1;
+            }
+            else
+            {
+                pos -= avl_cnt(node->right) + 1;
+            }
+            node = parent;
+        }
+    }
+    return node;
+}

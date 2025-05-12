@@ -54,4 +54,4 @@ uv run mcp install server.py
 
 #### API Reference
 
-Please refer the `API.md` for full list of supported commands and usage examples
+Please refer the [`API.md`](https://github.com/s1ddh3sh/PhotonDB/blob/main/API.md) for full list of supported commands and usage examples
