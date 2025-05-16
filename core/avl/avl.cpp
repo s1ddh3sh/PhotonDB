@@ -1,5 +1,6 @@
 #include <assert.h>
 #include "avl.h"
+#include <stdio.h>
 
 static uint32_t max(uint32_t a, uint32_t b)
 {
@@ -150,36 +151,54 @@ AVLNode *avl_del(AVLNode *node)
 // offset into succeeding or preceeding node
 AVLNode *avl_offset(AVLNode *node, int64_t offset)
 {
-    int64_t pos = 0;
+    int64_t pos = 0; // Start at the current node with position 0
     while (offset != pos)
     {
-        if (pos < offset && avl_cnt(node->right) >= offset)
+        if (offset > pos)
         {
-            // target inside right subtree
-            node = node->right;
-            pos += avl_cnt(node->left) + 1;
-        }
-        else if (pos > offset && pos - avl_cnt(node->left) <= offset)
-        {
-            // target inside left subtree
-            node = node->left;
-            pos -= avl_cnt(node->right) + 1;
-        }
-        else
-        {
-            // go to parent
-            AVLNode *parent = node->parent;
-            if (!parent)
-                return NULL;
-            if (parent->right == node)
+            // Move to the right subtree
+            if (node->right)
             {
-                pos -= avl_cnt(node->left) + 1;
+                node = node->right;
+                pos += avl_cnt(node->left) + 1; // Add left subtree size + 1 (current node)
             }
             else
             {
-                pos -= avl_cnt(node->right) + 1;
+                // No right subtree, move up to the parent
+                AVLNode *parent = node->parent;
+                while (parent && parent->right == node)
+                {
+                    node = parent;
+                    parent = parent->parent;
+                }
+                if (!parent)
+                    return NULL; // Offset out of bounds
+                node = parent;
+                pos++;
             }
-            node = parent;
+        }
+        else
+        {
+            // Move to the left subtree
+            if (node->left)
+            {
+                node = node->left;
+                pos -= avl_cnt(node->right) + 1; // Subtract right subtree size + 1 (current node)
+            }
+            else
+            {
+                // No left subtree, move up to the parent
+                AVLNode *parent = node->parent;
+                while (parent && parent->left == node)
+                {
+                    node = parent;
+                    parent = parent->parent;
+                }
+                if (!parent)
+                    return NULL; // Offset out of bounds
+                node = parent;
+                pos--;
+            }
         }
     }
     return node;

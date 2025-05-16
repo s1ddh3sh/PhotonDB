@@ -8,11 +8,12 @@ wheels/
 
 core/avl/test_avl.cpp
 core/avl/test_avl.out
+core/avl/test_offset.cpp
 core/hashtable/hashtable.h.gch
 core/dump.rdb
 # Virtual environments
 .venv
 .vscode
-
+cmds.txt
 .python-version
 uv.lock
