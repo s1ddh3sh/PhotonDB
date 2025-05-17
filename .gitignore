@@ -6,11 +6,10 @@ dist/
 wheels/
 *.egg-info
 
-core/avl/test_avl.cpp
-core/avl/test_avl.out
-core/avl/test_offset.cpp
-core/hashtable/hashtable.h.gch
-core/dump.rdb
+src/test_avl.cpp
+src/test_avl.out
+src/test_offset.cpp
+src/dump.rdb
 # Virtual environments
 .venv
 .vscode

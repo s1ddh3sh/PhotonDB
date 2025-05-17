@@ -17,11 +17,11 @@
 #include <string>
 #include <vector>
 #include "common.h"
-#include "zset/zset.h"
-#include "hashtable/hashtable.h"
-#include "timer/list.h"
-#include "timer/heap.h"
-#include "threads/thread_pool.h"
+#include "zset.h"
+#include "hashtable.h"
+#include "list.h"
+#include "heap.h"
+#include "thread_pool.h"
 
 static void msg(const char *msg)
 {
@@ -908,6 +908,11 @@ static void handle_read(Conn *conn)
     // got some data
     buf_append(conn->incoming, buf, (size_t)rv);
 
+    // update idle timer only on actual activity (r/w)
+    conn->last_active_ms = get_monotonic_msec();
+    dlist_detach(&conn->idle_node);
+    dlist_insert_before(&g_data.idle_list, &conn->idle_node);
+
     // parse requests and generate responses
     while (try_one_request(conn))
     {
@@ -923,7 +928,7 @@ static void handle_read(Conn *conn)
     }
 }
 
-const uint64_t k_idle_timeout_ms = 5 * 1000; // 5 seconds
+const uint64_t k_idle_timeout_ms = 20 * 1000; // 5 seconds
 
 static uint32_t next_timer_ms()
 {
@@ -965,7 +970,7 @@ static void process_timers()
         {
             break; // not expired
         }
-        fprintf(stderr, "iremoving idle connection: %d\n", conn->fd);
+        fprintf(stderr, "removing idle connection: %d\n", conn->fd);
         conn_destroy(conn);
     }
     // TTL using heap
@@ -1080,10 +1085,10 @@ int main()
 
             Conn *conn = g_data.fd2conn[poll_args[i].fd];
 
-            // update idle timer by moving conn to end of list
-            conn->last_active_ms = get_monotonic_msec();
-            dlist_detach(&conn->idle_node);
-            dlist_insert_before(&g_data.idle_list, &conn->idle_node);
+            // // update idle timer by moving conn to end of list
+            // conn->last_active_ms = get_monotonic_msec();
+            // dlist_detach(&conn->idle_node);
+            // dlist_insert_before(&g_data.idle_list, &conn->idle_node);
 
             if (ready & POLLIN)
             {
