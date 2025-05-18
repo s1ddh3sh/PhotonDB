@@ -87,6 +87,100 @@ This document provides a detailed reference for all commands supported by Photon
 
 ---
 
+### 6. `ZADD`
+
+- **_Description_**: Adds a member with a score to a sorted set.
+- **CLI Example**:
+  ```sh
+  ⚡photon> zadd myzset 1.5 alice
+  (int) 1
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
+### 7. `ZSCORE`
+
+- **_Description_**: Gets the score of a member in a sorted set.
+- **CLI Example**:
+  ```sh
+  ⚡photon> zscore myzset alice
+  (dbl) 1.5
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
+### 8. `ZREM`
+
+- **_Description_**: Removes a member from a sorted set.
+- **CLI Example**:
+  ```sh
+  ⚡photon> zrem myzset alice
+  (int) 1
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
+### 9. `ZQUERY`
+
+- **_Description_**: Queries a sorted set for a range of members by score and name.
+  `ZQUERY (zset, min_score, min_name, offset, limit)`
+- **CLI Example**:
+  ```sh
+  ⚡photon> zquery myzset 1.0 "" 0 10
+  (arr) len=2
+  (str) bob
+  (str) charlie
+  (arr) end
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
+### 10. `PEXPIRE`
+
+- **_Description_**: Sets a key's time to live in milliseconds.
+- **CLI Example**:
+  ```sh
+  ⚡photon> pexpire tempkey 1000
+  (int) 1
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
+### 11. `PTTL`
+
+- **_Description_**: Gets the remaining time to live of a key in milliseconds.
+- **CLI Example**:
+  ```sh
+  ⚡photon> pttl tempkey
+  (int) 900
+  ```
+- **MCP Example**:
+  ```sh
+  in progress
+  ```
+
+---
+
 ### Notes
 
 - All commands are case-insensitive.

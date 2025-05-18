@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <math.h>
+#include <fstream>
 
 #include <time.h>
 #include <unistd.h>
@@ -13,9 +14,11 @@
 #include <netinet/ip.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <mutex>
 
 #include <string>
 #include <vector>
+
 #include "common.h"
 #include "zset.h"
 #include "hashtable.h"
@@ -104,6 +107,8 @@ static struct
     std::vector<HeapItem> heap;  // timers for key TTLs
     ThreadPool thread_pool;      // thread pool
 } g_data;
+
+std::mutex snap_mutex;
 
 // application callback when listening socket is ready
 static int32_t *handle_accept(int fd)
@@ -404,6 +409,8 @@ static void do_get(std::vector<std::string> &cmd, Buffer &out)
 
 static void do_set(std::vector<std::string> &cmd, Buffer &out)
 {
+    std::lock_guard<std::mutex> lk(snap_mutex);
+
     // dummy struct for lookup
     LookupKey key;
     key.key.swap(cmd[1]);
@@ -434,6 +441,7 @@ static void do_set(std::vector<std::string> &cmd, Buffer &out)
 
 static void do_del(std::vector<std::string> &cmd, Buffer &out)
 {
+    std::lock_guard<std::mutex> lk(snap_mutex);
     // dummy struct for lookup
     LookupKey key;
     key.key.swap(cmd[1]);
@@ -563,6 +571,7 @@ static bool str2dbl(const std::string &s, double &out)
 // zadd zset score name
 static void do_zadd(std::vector<std::string> &cmd, Buffer &out)
 {
+    std::lock_guard<std::mutex> lk(snap_mutex);
     double score = 0;
     if (!str2dbl(cmd[2], score))
     {
@@ -616,6 +625,7 @@ static ZSet *expect_zset(std::string &s)
 // zrem zset name
 static void do_zrem(std::vector<std::string> &cmd, Buffer &out)
 {
+    std::lock_guard<std::mutex> lk(snap_mutex);
     ZSet *zset = expect_zset(cmd[1]);
     if (!zset)
     {
@@ -687,6 +697,126 @@ static void do_zquery(std::vector<std::string> &cmd, Buffer &out)
     out_end_arr(out, ctx, (uint32_t)n);
 }
 
+// static void do_save(std::vector<std::string> &, Buffer &out)
+// {
+//     if (save_snapshot("photon.rdb"))
+//         out_ok(out);
+//     else
+//         out_err(out, ERR_UNKNOWN, "save failed");
+// }
+// static void do_load(std::vector<std::string> &, Buffer &out)
+// {
+//     if (load_snapshot("photon.rdb"))
+//         out_ok(out);
+//     else
+//         out_err(out, ERR_UNKNOWN, "load failed");
+// }
+
+static void do_zap(std::vector<std::string> &, Buffer &out)
+{
+    out_str(out, "ZING", 4);
+}
+
+static void save_zset(std::ofstream &out, ZSet *zset)
+{
+    uint32_t count = (uint32_t)hm_size(&zset->hmap);
+    out.write((char *)&count, sizeof(count));
+    zset_foreach(zset, [](ZNode *z, void *arg)
+                 {
+        std::ofstream &out = *(std::ofstream *)arg;
+        out.write((char *)&z->score, sizeof(z->score));
+        uint32_t len = (uint32_t)z->len;
+        out.write((char*)&len, sizeof(len));
+        out.write(z->name, len); }, &out);
+}
+
+static void load_zset(std::ifstream &in, ZSet *zset)
+{
+    uint32_t count = 0;
+    in.read((char *)&count, sizeof(count));
+    for (uint32_t i = 0; i < count; i++)
+    {
+        double score = 0;
+        in.read((char *)&score, sizeof(score));
+        uint32_t len = 0;
+        in.read((char *)&len, sizeof(len));
+        std::string name(len, '\0');
+        in.read(&name[0], len);
+        zset_insert(zset, name.data(), len, score);
+    }
+}
+
+static bool save_snapshot(const char *filename)
+{
+    std::lock_guard<std::mutex> lk(snap_mutex);
+    std::ofstream out(filename, std::ios::binary | std::ios::trunc);
+    if (!out)
+        return false;
+    uint32_t n = (uint32_t)hm_size(&g_data.db);
+    out.write((char *)&n, sizeof(n));
+    hm_foreach(&g_data.db, [](HNode *node, void *arg)
+               {
+        std::ofstream &out = *(std::ofstream *)arg;
+        Entry *ent = container_of(node, Entry, node);
+
+        uint32_t klen = (uint32_t)ent->key.size();
+        out.write((char*)&klen, sizeof(klen));
+        out.write(ent->key.data(), klen);
+
+        out.write((char*)&ent->type, sizeof(ent->type));
+        if(ent->type == T_STR) {
+            uint32_t vlen = (uint32_t)ent->str.size();
+            out.write((char*)&vlen, sizeof(vlen));
+            out.write(ent->str.data(), vlen);
+        }
+        else if(ent->type == T_ZSET) { 
+            save_zset(out, &ent->zset);
+        }
+        return true; }, &out);
+    return true;
+}
+
+static bool load_snapshot(const char *filename)
+{
+    std::lock_guard<std::mutex> lk(snap_mutex);
+
+    std::ifstream in(filename, std::ios::binary);
+    if (!in)
+        return false;
+
+    // clear current db
+    hm_clear(&g_data.db);
+    uint32_t n = 0;
+    in.read((char *)&n, sizeof(n));
+    for (uint32_t i = 0; i < n; i++)
+    {
+        uint32_t klen = 0;
+        in.read((char *)&klen, sizeof(klen));
+        std::string key(klen, '\0');
+        in.read(&key[0], klen);
+
+        uint32_t type = 0;
+        in.read((char *)type, sizeof(type));
+        Entry *ent = entry_new(type);
+        ent->key = key;
+        ent->node.hcode = str_hash((uint8_t *)key.data(), key.size());
+
+        if (type == T_STR)
+        {
+            uint32_t vlen = 0;
+            in.read((char *)vlen, sizeof(vlen));
+            ent->str.resize(vlen);
+            in.read(&ent->str[0], vlen);
+        }
+        else if (type == T_ZSET)
+        {
+            load_zset(in, &ent->zset);
+        }
+        hm_insert(&g_data.db, &ent->node);
+    }
+    return true;
+}
+
 static void do_request(std::vector<std::string> &cmd, Buffer &out)
 {
     if (cmd.size() == 1 && cmd[0] == "ZAP")
@@ -732,6 +862,20 @@ static void do_request(std::vector<std::string> &cmd, Buffer &out)
     else if (cmd.size() == 2 && cmd[0] == "PTTL")
     {
         return do_ttl(cmd, out);
+    }
+    else if (cmd.size() == 1 && cmd[0] == "SAVE")
+    {
+        if (save_snapshot("photon.rdb"))
+            return out_ok(out);
+        else
+            return out_err(out, ERR_UNKNOWN, "save failed");
+    }
+    else if (cmd.size() == 1 && cmd[0] == "LOAD")
+    {
+        if (load_snapshot("photon.rdb"))
+            return out_ok(out);
+        else
+            return out_err(out, ERR_UNKNOWN, "load failed");
     }
     else
     {
@@ -991,13 +1135,19 @@ static void process_timers()
     }
 }
 
+static void save_snap_task(void *arg)
+{
+    const char *filename = (const char *)arg;
+    save_snapshot(filename);
+}
+
 int main()
 {
-
     // init
     dlist_init(&g_data.idle_list);
     thread_pool_init(&g_data.thread_pool, 4);
 
+    load_snapshot("photon.rdb");
     // server listening socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)

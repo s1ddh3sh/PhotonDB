@@ -9,7 +9,7 @@ wheels/
 src/test_avl.cpp
 src/test_avl.out
 src/test_offset.cpp
-src/dump.rdb
+src/photon.rdb
 # Virtual environments
 .venv
 .vscode

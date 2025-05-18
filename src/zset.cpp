@@ -182,3 +182,22 @@ void zset_clear(ZSet *zset)
     tree_dispose(zset->root);
     zset->root = NULL;
 }
+
+struct ZSetCtx
+{
+    void (*f)(ZNode *, void *);
+    void *arg;
+};
+
+static bool zset_foreach_adapter(HNode *h, void *ctx)
+{
+    ZSetCtx *c = (ZSetCtx *)ctx;
+    c->f(container_of(h, ZNode, hmap), c->arg);
+    return true;
+}
+
+void zset_foreach(ZSet *zset, void (*f)(ZNode *, void *), void *arg)
+{
+    ZSetCtx ctx = {f, arg};
+    hm_foreach(&zset->hmap, zset_foreach_adapter, &ctx);
+}
