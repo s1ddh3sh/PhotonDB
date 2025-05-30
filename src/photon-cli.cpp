@@ -311,7 +311,7 @@ int main()
         }
         if (cmd.empty())
             continue;
-        if (cmd[0] == "exit")
+        if (cmd[0] == "exit" || cmd[0] == "quit")
             break;
 
         int32_t err = send_req(fd, cmd);

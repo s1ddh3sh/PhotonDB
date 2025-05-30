@@ -52,6 +52,29 @@ uv run mcp install server.py
 
 </details>
 
+<details open>
+<summary><h2>Building PhotonDB</h2> </summary>
+
+PhotonDB uses [CMake](https://cmake.org/) for building. Make sure you have CMake (version 3.10 or newer) and a C++17 compiler installed.
+
+```sh
+#Clone the repository and enter the directory
+git clone https://github.com/s1ddh3sh/PhotonDB.git
+cd PhotonDB
+
+#Create a build directory and run CMake
+mkdir build
+cd build
+cmake ..
+
+#Build the server and CLI
+make
+```
+
+Make sure to run the `make` command in the build dir to compile the changes and build the server/client
+
+</details>
+
 #### API Reference
 
 Please refer the [`API.md`](https://github.com/s1ddh3sh/PhotonDB/blob/main/API.md) for full list of supported commands and usage examples
